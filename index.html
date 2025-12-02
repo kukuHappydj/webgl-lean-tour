@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="./css/index.css">
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+    <script id="vertex-shader-2d" type="notjs">
+        attribute vec4 a_position;
+        void main(){
+            gl_Position = a_position;
+        }
+
+    </script>
+    <script id="fragment-shader-2d" type="notjs">
+
+  precision mediump float;
+  void main() {
+    gl_FragColor = vec4(1, 0, 0.5, 1); 
+  }
+
+</script>
+    <script src="./js/index.js"></script>
+</body>
+
+</html>
