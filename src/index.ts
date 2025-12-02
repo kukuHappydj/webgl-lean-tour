@@ -38,6 +38,15 @@ function createProgram(
   gl.deleteProgram(program);
   return null;
 }
+function activeLocation(
+  gl: WebGLRenderingContext,
+  program: WebGLProgram,
+  position: string
+) {
+  const positionAttributeLocation = gl.getAttribLocation(program, position);
+  gl.enableVertexAttribArray(positionAttributeLocation);
+  return positionAttributeLocation;
+}
 
 function main(): void {
   const canvas = document.querySelector<HTMLCanvasElement>("#c");
@@ -79,8 +88,7 @@ function main(): void {
     return;
   }
 
-  let positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-  gl.enableVertexAttribArray(positionAttributeLocation);
+  let positionAttributeLocation = activeLocation(gl, program, "a_position");
 
   var positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
@@ -97,7 +105,7 @@ function main(): void {
   gl.useProgram(program);
 
   gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.drawArrays(gl.TRIANGLES, 0, 2);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
 
   // const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
 

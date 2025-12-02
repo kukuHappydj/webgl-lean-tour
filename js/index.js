@@ -30,6 +30,11 @@ function createProgram(gl, vertex, fragment) {
     gl.deleteProgram(program);
     return null;
 }
+function activeLocation(gl, program, position) {
+    const positionAttributeLocation = gl.getAttribLocation(program, position);
+    gl.enableVertexAttribArray(positionAttributeLocation);
+    return positionAttributeLocation;
+}
 function main() {
     const canvas = document.querySelector("#c");
     if (!canvas) {
@@ -58,8 +63,7 @@ function main() {
     if (!program) {
         return;
     }
-    let positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-    gl.enableVertexAttribArray(positionAttributeLocation);
+    let positionAttributeLocation = activeLocation(gl, program, "a_position");
     var positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     // 三个二维点坐标
@@ -72,7 +76,7 @@ function main() {
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
     gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
-    gl.drawArrays(gl.TRIANGLES, 0, 2);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
     // const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     // const positionBuffer = gl.createBuffer();
     // gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
