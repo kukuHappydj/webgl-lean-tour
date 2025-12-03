@@ -3,6 +3,8 @@ const vertex = `
         attribute vec4 a_position;
         uniform vec2 u_resolution;
         varying vec4 v_color;
+        attribute vec2 a_texCoord;
+        varying vec2 v_texCoord;
         void main(){
             // 从像素坐标转换到 0.0 到 1.0
             vec2 zeroToOne = a_position.xy / u_resolution;
@@ -15,12 +17,15 @@ const vertex = `
 
             gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
             v_color = gl_Position + 0.2;
+            v_texCoord = a_texCoord;
         }`;
 const fragment = `
         precision mediump float;
         varying vec4 v_color;
+        varying vec2 v_texCoord;
+        uniform sampler2D u_image;
         void main() {
-          gl_FragColor = v_color; 
+          gl_FragColor = texture2D(u_image,v_texCoord); 
         }
         `;
 function createShader(gl, type, source) {
@@ -59,7 +64,8 @@ function activeLocation(gl, program, position) {
     gl.enableVertexAttribArray(positionAttributeLocation);
     return positionAttributeLocation;
 }
-function main() {
+function main(img) {
+    console.log(img);
     const canvas = document.querySelector("#c");
     if (!canvas) {
         alert("Canvas element not found");
@@ -81,11 +87,10 @@ function main() {
     if (!program) {
         return;
     }
+    // 设置位置属性
     let positionAttributeLocation = activeLocation(gl, program, "a_position");
     var positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    // 三个二维点坐标
-    // var positions = [0, 0, -1, 0.5, 1, 0];
     let positions = [
         // left column
         0, 0, 30, 0, 0, 150, 0, 150, 30, 0, 30, 150,
@@ -95,6 +100,32 @@ function main() {
         30, 60, 67, 60, 30, 90, 30, 90, 67, 60, 67, 90,
     ];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
+    // 设置纹理坐标
+    var texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
+    var texCoordBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+    // 为F形状的每个顶点设置纹理坐标（0-1范围）
+    var texCoords = [
+        // left column
+        0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
+        // top rung
+        0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
+        // middle rung
+        0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
+    ];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(texCoordLocation);
+    gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+    var texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    // 设置参数，让我们可以绘制任何尺寸的图像
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    // 将图像上传到纹理
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -104,55 +135,20 @@ function main() {
     // 设置分辨率 uniform
     const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
     gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
-    // 告诉属性如何从 positionBuffer（ARRAY_BUFFER）中读取数据
-    var size = 2; // 每次迭代读取 2 个分量
-    var type = gl.FLOAT; // 数据类型是 32 位浮点数
-    var normalize = false; // 不对数据进行归一化
-    var stride = 0; // 0 = 每次迭代向前移动 size * sizeof(type) 个字节来获取下一个位置
-    var offset = 0; // 从缓冲区的起始位置开始读取
-    gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
+    // 绘制
     var primitiveType = gl.TRIANGLES;
     var offset = 0;
     var count = 18;
-    gl.drawArrays(primitiveType, offset, 18);
-    // const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
-    // const positionBuffer = gl.createBuffer();
-    // gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    // // 三个二维点坐标
-    // const positions = [0, 0, 0, 0.5, 0.7, 0];
-    // gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-    // // 调整画布大小
-    // canvas.width = canvas.clientWidth;
-    // canvas.height = canvas.clientHeight;
-    // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    // // 清空画布
-    // gl.clearColor(0, 0, 0, 0);
-    // gl.clear(gl.COLOR_BUFFER_BIT);
-    // // 使用程序
-    // gl.useProgram(program);
-    // // 启用属性
-    // gl.enableVertexAttribArray(positionAttributeLocation);
-    // // 绑定缓冲区
-    // gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    // // 告诉属性如何从 positionBuffer 中读取数据
-    // const size = 2;          // 每次迭代运行提取两个单位数据
-    // const type = gl.FLOAT;   // 每个单位的数据类型是32位浮点型
-    // const normalize = false; // 不需要归一化数据
-    // const stride = 0;        // 0 = 移动单位数量 * 每个单位占用内存（sizeof(type)）
-    // const offset = 0;        // 从缓冲起始位置开始读取
-    // gl.vertexAttribPointer(
-    //   positionAttributeLocation,
-    //   size,
-    //   type,
-    //   normalize,
-    //   stride,
-    //   offset
-    // );
-    // // 绘制
-    // const primitiveType = gl.TRIANGLES;
-    // const drawOffset = 0;
-    // const count = 3;
-    // gl.drawArrays(primitiveType, drawOffset, count);
+    gl.drawArrays(primitiveType, offset, count);
 }
-main();
+function requestImage() {
+    let image = new Image();
+    image.src = "http://127.0.0.1:8080/image/index.jpeg";
+    if (image) {
+        image.onload = function () {
+            main(image);
+        };
+    }
+}
+requestImage();
 //# sourceMappingURL=index.js.map
