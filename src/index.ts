@@ -111,7 +111,9 @@ function main(img: HTMLImageElement): void {
   }
 
   // 设置位置属性
-  let positionAttributeLocation = activeLocation(gl, program, "a_position");
+  // let positionAttributeLocation = activeLocation(gl, program, "a_position");
+  const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+
   var positionBuffer = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
 
@@ -126,6 +128,7 @@ function main(img: HTMLImageElement): void {
     30, 60, 67, 60, 30, 90, 30, 90, 67, 60, 67, 90,
   ];
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(positionAttributeLocation);
   gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
 
   // 设置纹理坐标
