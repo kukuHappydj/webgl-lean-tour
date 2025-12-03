@@ -104,8 +104,34 @@ function main(): void {
   gl.clear(gl.COLOR_BUFFER_BIT);
   gl.useProgram(program);
 
-  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+  var size = 2; // 2 components per iteration
+  var type = gl.FLOAT; // the data is 32bit floats
+  var normalize = false; // don't normalize the data
+  var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
+  var offset = 0; // start at the beginning of the buffer
+  gl.vertexAttribPointer(
+    positionAttributeLocation,
+    size,
+    type,
+    normalize,
+    stride,
+    offset
+  );
+
+
+    // // Compute the matrix
+    // var matrix = m3.projection(gl.canvas.clientWidth, gl.canvas.clientHeight);
+    // matrix = m3.translate(matrix, translation[0], translation[1]);
+    // matrix = m3.rotate(matrix, angleInRadians);
+    // matrix = m3.scale(matrix, scale[0], scale[1]);
+    // gl.uniformMatrix3fv(matrixLocation, false, matrix);
+
+  // Draw the geometry.
+  var primitiveType = gl.TRIANGLES;
+  var offset = 0;
+  var count = 3;
+  gl.drawArrays(primitiveType, offset, count);
 
   // const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
 
