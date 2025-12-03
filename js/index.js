@@ -1,4 +1,28 @@
 "use strict";
+const vertex = `
+        attribute vec4 a_position;
+        uniform vec2 u_resolution;
+        varying vec4 v_color;
+        void main(){
+            // 从像素坐标转换到 0.0 到 1.0
+            vec2 zeroToOne = a_position.xy / u_resolution;
+
+            // 从 0->1 转换到 0->2
+            vec2 zeroToTwo = zeroToOne * 2.0;
+
+            // 从 0->2 转换到 -1->+1 (裁剪空间)
+            vec2 clipSpace = zeroToTwo - 1.0;
+
+            gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+            v_color = gl_Position + 0.2;
+        }`;
+const fragment = `
+        precision mediump float;
+        varying vec4 v_color;
+        void main() {
+          gl_FragColor = v_color; 
+        }
+        `;
 function createShader(gl, type, source) {
     const shader = gl.createShader(type);
     if (!shader) {
@@ -46,14 +70,8 @@ function main() {
         alert("你不能使用 WebGL");
         return;
     }
-    const vertexShaderElement = document.querySelector("#vertex-shader-2d");
-    const fragmentShaderElement = document.querySelector("#fragment-shader-2d");
-    if (!vertexShaderElement || !fragmentShaderElement) {
-        alert("Shader scripts not found");
-        return;
-    }
-    const vertexShaderSource = vertexShaderElement.textContent || "";
-    const fragmentShaderSource = fragmentShaderElement.textContent || "";
+    const vertexShaderSource = vertex || "";
+    const fragmentShaderSource = fragment || "";
     const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
     const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
     if (!vertexShader || !fragmentShader) {
@@ -67,7 +85,15 @@ function main() {
     var positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     // 三个二维点坐标
-    var positions = [0, 0, -1, 0.5, 1, 0];
+    // var positions = [0, 0, -1, 0.5, 1, 0];
+    let positions = [
+        // left column
+        0, 0, 30, 0, 0, 150, 0, 150, 30, 0, 30, 150,
+        // top rung
+        30, 0, 100, 0, 30, 30, 30, 30, 100, 0, 100, 30,
+        // middle rung
+        30, 60, 67, 60, 30, 90, 30, 90, 67, 60, 67, 90,
+    ];
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
@@ -75,24 +101,20 @@ function main() {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.useProgram(program);
-    // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
-    var size = 2; // 2 components per iteration
-    var type = gl.FLOAT; // the data is 32bit floats
-    var normalize = false; // don't normalize the data
-    var stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
-    var offset = 0; // start at the beginning of the buffer
+    // 设置分辨率 uniform
+    const resolutionUniformLocation = gl.getUniformLocation(program, "u_resolution");
+    gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
+    // 告诉属性如何从 positionBuffer（ARRAY_BUFFER）中读取数据
+    var size = 2; // 每次迭代读取 2 个分量
+    var type = gl.FLOAT; // 数据类型是 32 位浮点数
+    var normalize = false; // 不对数据进行归一化
+    var stride = 0; // 0 = 每次迭代向前移动 size * sizeof(type) 个字节来获取下一个位置
+    var offset = 0; // 从缓冲区的起始位置开始读取
     gl.vertexAttribPointer(positionAttributeLocation, size, type, normalize, stride, offset);
-    // // Compute the matrix
-    // var matrix = m3.projection(gl.canvas.clientWidth, gl.canvas.clientHeight);
-    // matrix = m3.translate(matrix, translation[0], translation[1]);
-    // matrix = m3.rotate(matrix, angleInRadians);
-    // matrix = m3.scale(matrix, scale[0], scale[1]);
-    // gl.uniformMatrix3fv(matrixLocation, false, matrix);
-    // Draw the geometry.
     var primitiveType = gl.TRIANGLES;
     var offset = 0;
-    var count = 3;
-    gl.drawArrays(primitiveType, offset, count);
+    var count = 18;
+    gl.drawArrays(primitiveType, offset, 18);
     // const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
     // const positionBuffer = gl.createBuffer();
     // gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
