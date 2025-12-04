@@ -1,13 +1,30 @@
 "use strict";
 const vertex = `
         attribute vec4 a_position;
+        attribute vec2 a_translation;
+        attribute vec2 a_scale;
+        attribute float a_rotation;
         uniform vec2 u_resolution;
         varying vec4 v_color;
         attribute vec2 a_texCoord;
         varying vec2 v_texCoord;
         void main(){
+            // 1. 先应用缩放
+            vec2 scaledPosition = a_position.xy * a_scale;
+
+            // 2. 然后应用旋转
+            float cosAngle = cos(a_rotation);
+            float sinAngle = sin(a_rotation);
+            vec2 rotatedPosition = vec2(
+                scaledPosition.x * cosAngle - scaledPosition.y * sinAngle,
+                scaledPosition.x * sinAngle + scaledPosition.y * cosAngle
+            );
+
+            // 3. 最后应用平移
+            vec2 transformedPosition = rotatedPosition + a_translation;
+
             // 从像素坐标转换到 0.0 到 1.0
-            vec2 zeroToOne = a_position.xy / u_resolution;
+            vec2 zeroToOne = transformedPosition / u_resolution;
 
             // 从 0->1 转换到 0->2
             vec2 zeroToTwo = zeroToOne * 2.0;
@@ -129,6 +146,37 @@ function main(img) {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(texCoordLocation);
     gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+    // 设置平移 attribute
+    var translationLocation = gl.getAttribLocation(program, "a_translation");
+    var translationBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, translationBuffer);
+    // 为每个顶点设置相同的平移量 (例如: x平移100像素, y平移50像素)
+    var translations = new Array(18 * 2).fill(0).map((_, i) => {
+        return i % 2 === 0 ? 100 : 50; // x: 100, y: 50
+    });
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(translations), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(translationLocation);
+    gl.vertexAttribPointer(translationLocation, 2, gl.FLOAT, false, 0, 0);
+    // 设置缩放 attribute
+    var scaleLocation = gl.getAttribLocation(program, "a_scale");
+    var scaleBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, scaleBuffer);
+    // 为每个顶点设置相同的缩放量 (例如: x缩放1.5倍, y缩放1.5倍)
+    var scales = new Array(18 * 2).fill(0).map((_, i) => {
+        return i % 2 === 0 ? 1.5 : 1.5; // x: 1.5, y: 1.5
+    });
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(scales), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(scaleLocation);
+    gl.vertexAttribPointer(scaleLocation, 2, gl.FLOAT, false, 0, 0);
+    // 设置旋转 attribute
+    var rotationLocation = gl.getAttribLocation(program, "a_rotation");
+    var rotationBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, rotationBuffer);
+    // 为每个顶点设置相同的旋转角度 (例如: 旋转45度 = Math.PI / 4 弧度)
+    var rotations = new Array(18).fill(Math.PI / 4); // 45度
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(rotations), gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(rotationLocation);
+    gl.vertexAttribPointer(rotationLocation, 1, gl.FLOAT, false, 0, 0);
     var texture = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, texture);
     // 设置参数，让我们可以绘制任何尺寸的图像
@@ -155,7 +203,7 @@ function main(img) {
 }
 function requestImage() {
     let image = new Image();
-    image.src = "http://127.0.0.1:8080/image/index.jpeg";
+    image.src = "http://127.0.0.1:8082/image/index.jpeg";
     if (image) {
         image.onload = function () {
             main(image);
