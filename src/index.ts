@@ -106,6 +106,36 @@ function createAndSetupTexture(gl: WebGLRenderingContext) {
   return texture;
 }
 
+// 创建2D平移矩阵 (3x3)
+function translate(tx: number, ty: number): number[] {
+  return [
+    1, 0, 0,
+    0, 1, 0,
+    tx, ty, 1
+  ];
+}
+
+// 创建2D旋转矩阵 (3x3)
+// angle 单位为弧度
+function rotate(angle: number): number[] {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return [
+    c, s, 0,
+    -s, c, 0,
+    0, 0, 1
+  ];
+}
+
+// 创建2D缩放矩阵 (3x3)
+function scale(sx: number, sy: number): number[] {
+  return [
+    sx, 0, 0,
+    0, sy, 0,
+    0, 0, 1
+  ];
+}
+
 function main(img: HTMLImageElement): void {
   console.log(img);
   const canvas = document.querySelector<HTMLCanvasElement>("#c");
