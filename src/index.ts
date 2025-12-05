@@ -1,295 +1,424 @@
-const vertex = `
-        attribute vec4 a_position;
-        attribute vec2 a_translation;
-        attribute vec2 a_scale;
-        attribute float a_rotation;
-        uniform vec2 u_resolution;
-        varying vec4 v_color;
-        attribute vec2 a_texCoord;
-        varying vec2 v_texCoord;
-        void main(){
-            // 1. 先应用缩放
-            vec2 scaledPosition = a_position.xy * a_scale;
+// 顶点着色器代码
+const vertexShaderSource = `
+attribute vec4 a_position;
+uniform mat4 u_matrix;
 
-            // 2. 然后应用旋转
-            float cosAngle = cos(a_rotation);
-            float sinAngle = sin(a_rotation);
-            vec2 rotatedPosition = vec2(
-                scaledPosition.x * cosAngle - scaledPosition.y * sinAngle,
-                scaledPosition.x * sinAngle + scaledPosition.y * cosAngle
-            );
+void main() {
+  // Multiply the position by the matrix.
+  gl_Position = u_matrix * a_position;
+}
+`;
 
-            // 3. 最后应用平移
-            vec2 transformedPosition = rotatedPosition + a_translation;
+// 片段着色器代码
+const fragmentShaderSource = `
+precision mediump float;
+uniform vec4 u_color;
 
-            // 从像素坐标转换到 0.0 到 1.0
-            vec2 zeroToOne = transformedPosition / u_resolution;
+void main() {
+  gl_FragColor = u_color;
+}
+`;
 
-            // 从 0->1 转换到 0->2
-            vec2 zeroToTwo = zeroToOne * 2.0;
+// 声明外部库类型
+declare const webglUtils: {
+  createProgramFromSources: (
+    gl: WebGLRenderingContext,
+    shaders: string[]
+  ) => WebGLProgram | null;
+  resizeCanvasToDisplaySize: (canvas: HTMLCanvasElement) => boolean;
+};
 
-            // 从 0->2 转换到 -1->+1 (裁剪空间)
-            vec2 clipSpace = zeroToTwo - 1.0;
+declare const webglLessonsUI: {
+  setupSlider: (
+    selector: string,
+    options: {
+      value: number;
+      slide: (event: any, ui: { value: number }) => void;
+      max?: number;
+      min?: number;
+      step?: number;
+      precision?: number;
+    }
+  ) => void;
+};
 
-            gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
-            v_color = gl_Position + 0.2;
-            v_texCoord = a_texCoord;
-        }`;
-const fragment = `
-        precision mediump float;
-        varying vec4 v_color;
-        varying vec2 v_texCoord;
-        uniform sampler2D u_image;
-        void main() {
-          gl_FragColor = texture2D(u_image,v_texCoord); 
-        }
-        `;
-function createShader(
-  gl: WebGLRenderingContext,
-  type: number,
-  source: string
-): WebGLShader | null {
-  const shader = gl.createShader(type);
-  if (!shader) {
-    return null;
-  }
-  gl.shaderSource(shader, source);
-  gl.compileShader(shader);
-  const success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
-  if (success) {
-    return shader;
-  }
-  console.error("Shader compilation failed:", gl.getShaderInfoLog(shader));
-  gl.deleteShader(shader);
-  return null;
+// 4x4 矩阵工具函数
+const m4 = {
+  // 创建投影矩阵
+  projection: function (width: number, height: number, depth: number): number[] {
+    // Note: This matrix flips the Y axis so 0 is at the top.
+    return [
+      2 / width, 0, 0, 0,
+      0, -2 / height, 0, 0,
+      0, 0, 2 / depth, 0,
+      -1, 1, 0, 1,
+    ];
+  },
+
+  // 矩阵相乘
+  multiply: function (a: number[], b: number[]): number[] {
+    const a00 = a[0 * 4 + 0];
+    const a01 = a[0 * 4 + 1];
+    const a02 = a[0 * 4 + 2];
+    const a03 = a[0 * 4 + 3];
+    const a10 = a[1 * 4 + 0];
+    const a11 = a[1 * 4 + 1];
+    const a12 = a[1 * 4 + 2];
+    const a13 = a[1 * 4 + 3];
+    const a20 = a[2 * 4 + 0];
+    const a21 = a[2 * 4 + 1];
+    const a22 = a[2 * 4 + 2];
+    const a23 = a[2 * 4 + 3];
+    const a30 = a[3 * 4 + 0];
+    const a31 = a[3 * 4 + 1];
+    const a32 = a[3 * 4 + 2];
+    const a33 = a[3 * 4 + 3];
+    const b00 = b[0 * 4 + 0];
+    const b01 = b[0 * 4 + 1];
+    const b02 = b[0 * 4 + 2];
+    const b03 = b[0 * 4 + 3];
+    const b10 = b[1 * 4 + 0];
+    const b11 = b[1 * 4 + 1];
+    const b12 = b[1 * 4 + 2];
+    const b13 = b[1 * 4 + 3];
+    const b20 = b[2 * 4 + 0];
+    const b21 = b[2 * 4 + 1];
+    const b22 = b[2 * 4 + 2];
+    const b23 = b[2 * 4 + 3];
+    const b30 = b[3 * 4 + 0];
+    const b31 = b[3 * 4 + 1];
+    const b32 = b[3 * 4 + 2];
+    const b33 = b[3 * 4 + 3];
+    return [
+      b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30,
+      b00 * a01 + b01 * a11 + b02 * a21 + b03 * a31,
+      b00 * a02 + b01 * a12 + b02 * a22 + b03 * a32,
+      b00 * a03 + b01 * a13 + b02 * a23 + b03 * a33,
+      b10 * a00 + b11 * a10 + b12 * a20 + b13 * a30,
+      b10 * a01 + b11 * a11 + b12 * a21 + b13 * a31,
+      b10 * a02 + b11 * a12 + b12 * a22 + b13 * a32,
+      b10 * a03 + b11 * a13 + b12 * a23 + b13 * a33,
+      b20 * a00 + b21 * a10 + b22 * a20 + b23 * a30,
+      b20 * a01 + b21 * a11 + b22 * a21 + b23 * a31,
+      b20 * a02 + b21 * a12 + b22 * a22 + b23 * a32,
+      b20 * a03 + b21 * a13 + b22 * a23 + b23 * a33,
+      b30 * a00 + b31 * a10 + b32 * a20 + b33 * a30,
+      b30 * a01 + b31 * a11 + b32 * a21 + b33 * a31,
+      b30 * a02 + b31 * a12 + b32 * a22 + b33 * a32,
+      b30 * a03 + b31 * a13 + b32 * a23 + b33 * a33,
+    ];
+  },
+
+  // 创建平移矩阵
+  translation: function (tx: number, ty: number, tz: number): number[] {
+    return [
+      1, 0, 0, 0,
+      0, 1, 0, 0,
+      0, 0, 1, 0,
+      tx, ty, tz, 1,
+    ];
+  },
+
+  // 创建X轴旋转矩阵
+  xRotation: function (angleInRadians: number): number[] {
+    const c = Math.cos(angleInRadians);
+    const s = Math.sin(angleInRadians);
+    return [
+      1, 0, 0, 0,
+      0, c, s, 0,
+      0, -s, c, 0,
+      0, 0, 0, 1,
+    ];
+  },
+
+  // 创建Y轴旋转矩阵
+  yRotation: function (angleInRadians: number): number[] {
+    const c = Math.cos(angleInRadians);
+    const s = Math.sin(angleInRadians);
+    return [
+      c, 0, -s, 0,
+      0, 1, 0, 0,
+      s, 0, c, 0,
+      0, 0, 0, 1,
+    ];
+  },
+
+  // 创建Z轴旋转矩阵
+  zRotation: function (angleInRadians: number): number[] {
+    const c = Math.cos(angleInRadians);
+    const s = Math.sin(angleInRadians);
+    return [
+      c, s, 0, 0,
+      -s, c, 0, 0,
+      0, 0, 1, 0,
+      0, 0, 0, 1,
+    ];
+  },
+
+  // 创建缩放矩阵
+  scaling: function (sx: number, sy: number, sz: number): number[] {
+    return [
+      sx, 0, 0, 0,
+      0, sy, 0, 0,
+      0, 0, sz, 0,
+      0, 0, 0, 1,
+    ];
+  },
+
+  // 应用平移
+  translate: function (m: number[], tx: number, ty: number, tz: number): number[] {
+    return m4.multiply(m, m4.translation(tx, ty, tz));
+  },
+
+  // 应用X轴旋转
+  xRotate: function (m: number[], angleInRadians: number): number[] {
+    return m4.multiply(m, m4.xRotation(angleInRadians));
+  },
+
+  // 应用Y轴旋转
+  yRotate: function (m: number[], angleInRadians: number): number[] {
+    return m4.multiply(m, m4.yRotation(angleInRadians));
+  },
+
+  // 应用Z轴旋转
+  zRotate: function (m: number[], angleInRadians: number): number[] {
+    return m4.multiply(m, m4.zRotation(angleInRadians));
+  },
+
+  // 应用缩放
+  scale: function (m: number[], sx: number, sy: number, sz: number): number[] {
+    return m4.multiply(m, m4.scaling(sx, sy, sz));
+  },
+};
+
+// 工具函数：角度转弧度
+function radToDeg(r: number): number {
+  return (r * 180) / Math.PI;
 }
 
-function createProgram(
-  gl: WebGLRenderingContext,
-  vertex: WebGLShader,
-  fragment: WebGLShader
-): WebGLProgram | null {
-  const program = gl.createProgram();
-  if (!program) {
-    return null;
-  }
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  const success = gl.getProgramParameter(program, gl.LINK_STATUS);
-  if (success) {
-    return program;
-  }
-  console.error("Program linking failed:", gl.getProgramInfoLog(program));
-  gl.deleteProgram(program);
-  return null;
-}
-function activeLocation(
-  gl: WebGLRenderingContext,
-  program: WebGLProgram,
-  position: string
-) {
-  const positionAttributeLocation = gl.getAttribLocation(program, position);
-  gl.enableVertexAttribArray(positionAttributeLocation);
-  return positionAttributeLocation;
-}
-function createAndSetupTexture(gl: WebGLRenderingContext) {
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-
-  // 设置材质，这样我们可以对任意大小的图像进行像素操作
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-  return texture;
+function degToRad(d: number): number {
+  return (d * Math.PI) / 180;
 }
 
-// 创建2D平移矩阵 (3x3)
-function translate(tx: number, ty: number): number[] {
-  return [
-    1, 0, 0,
-    0, 1, 0,
-    tx, ty, 1
-  ];
+// Fill the buffer with the values that define a letter 'F'.
+function setGeometry(gl: WebGLRenderingContext): void {
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([
+      // left column
+      0, 0, 0,
+      30, 0, 0,
+      0, 150, 0,
+      0, 150, 0,
+      30, 0, 0,
+      30, 150, 0,
+
+      // top rung
+      30, 0, 0,
+      100, 0, 0,
+      30, 30, 0,
+      30, 30, 0,
+      100, 0, 0,
+      100, 30, 0,
+
+      // middle rung
+      30, 60, 0,
+      67, 60, 0,
+      30, 90, 0,
+      30, 90, 0,
+      67, 60, 0,
+      67, 90, 0
+    ]),
+    gl.STATIC_DRAW
+  );
 }
 
-// 创建2D旋转矩阵 (3x3)
-// angle 单位为弧度
-function rotate(angle: number): number[] {
-  const c = Math.cos(angle);
-  const s = Math.sin(angle);
-  return [
-    c, s, 0,
-    -s, c, 0,
-    0, 0, 1
-  ];
-}
-
-// 创建2D缩放矩阵 (3x3)
-function scale(sx: number, sy: number): number[] {
-  return [
-    sx, 0, 0,
-    0, sy, 0,
-    0, 0, 1
-  ];
-}
-
-function main(img: HTMLImageElement): void {
-  console.log(img);
-  const canvas = document.querySelector<HTMLCanvasElement>("#c");
+// 主函数
+function main(): void {
+  // Get A WebGL context
+  const canvas = document.querySelector<HTMLCanvasElement>("#canvas");
   if (!canvas) {
-    alert("Canvas element not found");
+    console.error("Canvas element not found");
     return;
   }
 
   const gl = canvas.getContext("webgl");
   if (!gl) {
-    alert("你不能使用 WebGL");
+    console.error("WebGL not supported");
     return;
   }
 
-  const vertexShaderSource = vertex || "";
-  const fragmentShaderSource = fragment || "";
-
-  const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  const fragmentShader = createShader(
-    gl,
-    gl.FRAGMENT_SHADER,
+  // setup GLSL program
+  const program = webglUtils.createProgramFromSources(gl, [
+    vertexShaderSource,
     fragmentShaderSource
-  );
+  ]);
 
-  if (!vertexShader || !fragmentShader) {
-    return;
-  }
-
-  const program = createProgram(gl, vertexShader, fragmentShader);
   if (!program) {
+    console.error("Failed to create program");
     return;
   }
 
-  // 设置位置属性
-  // let positionAttributeLocation = activeLocation(gl, program, "a_position");
-  const positionAttributeLocation = gl.getAttribLocation(program, "a_position");
+  // look up where the vertex data needs to go.
+  const positionLocation = gl.getAttribLocation(program, "a_position");
 
-  var positionBuffer = gl.createBuffer();
+  // lookup uniforms
+  const colorLocation = gl.getUniformLocation(program, "u_color");
+  const matrixLocation = gl.getUniformLocation(program, "u_matrix");
+
+  // Create a buffer to put positions in
+  const positionBuffer = gl.createBuffer();
+  // Bind it to ARRAY_BUFFER (think of it as ARRAY_BUFFER = positionBuffer)
   gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  // Put geometry data into buffer
+  setGeometry(gl);
 
-  let positions = [
-    // left column
-    0, 0, 30, 0, 0, 150, 0, 150, 30, 0, 30, 150,
-
-    // top rung
-    30, 0, 100, 0, 30, 30, 30, 30, 100, 0, 100, 30,
-
-    // middle rung
-    30, 60, 67, 60, 30, 90, 30, 90, 67, 60, 67, 90,
+  const translation: [number, number, number] = [45, 150, 0];
+  const rotation: [number, number, number] = [
+    degToRad(40),
+    degToRad(25),
+    degToRad(325)
   ];
-  
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(positionAttributeLocation);
-  gl.vertexAttribPointer(positionAttributeLocation, 2, gl.FLOAT, false, 0, 0);
-
-  // 设置纹理坐标
-  var texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
-  var texCoordBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
-
-  // 为F形状的每个顶点设置纹理坐标（0-1范围）
-  var texCoords = [
-    // left column
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
-    // top rung
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
-    // middle rung
-    0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1,
+  const scale: [number, number, number] = [1, 1, 1];
+  const color: [number, number, number, number] = [
+    Math.random(),
+    Math.random(),
+    Math.random(),
+    1
   ];
 
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(texCoords), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(texCoordLocation);
-  gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+  drawScene();
 
-  // 设置平移 attribute
-  var translationLocation = gl.getAttribLocation(program, "a_translation");
-  var translationBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, translationBuffer);
-
-  // 为每个顶点设置相同的平移量 (例如: x平移100像素, y平移50像素)
-  var translations = new Array(18 * 2).fill(0).map((_, i) => {
-    return i % 2 === 0 ? 100 : 0; // x: 100, y: 50
+  // Setup a ui.
+  webglLessonsUI.setupSlider("#x", {
+    value: translation[0],
+    slide: updatePosition(0),
+    max: gl.canvas.width
+  });
+  webglLessonsUI.setupSlider("#y", {
+    value: translation[1],
+    slide: updatePosition(1),
+    max: gl.canvas.height
+  });
+  webglLessonsUI.setupSlider("#z", {
+    value: translation[2],
+    slide: updatePosition(2),
+    max: gl.canvas.height
+  });
+  webglLessonsUI.setupSlider("#angleX", {
+    value: radToDeg(rotation[0]),
+    slide: updateRotation(0),
+    max: 360
+  });
+  webglLessonsUI.setupSlider("#angleY", {
+    value: radToDeg(rotation[1]),
+    slide: updateRotation(1),
+    max: 360
+  });
+  webglLessonsUI.setupSlider("#angleZ", {
+    value: radToDeg(rotation[2]),
+    slide: updateRotation(2),
+    max: 360
+  });
+  webglLessonsUI.setupSlider("#scaleX", {
+    value: scale[0],
+    slide: updateScale(0),
+    min: -5,
+    max: 5,
+    step: 0.01,
+    precision: 2
+  });
+  webglLessonsUI.setupSlider("#scaleY", {
+    value: scale[1],
+    slide: updateScale(1),
+    min: -5,
+    max: 5,
+    step: 0.01,
+    precision: 2
+  });
+  webglLessonsUI.setupSlider("#scaleZ", {
+    value: scale[2],
+    slide: updateScale(2),
+    min: -5,
+    max: 5,
+    step: 0.01,
+    precision: 2
   });
 
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(translations), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(translationLocation);
-  gl.vertexAttribPointer(translationLocation, 2, gl.FLOAT, false, 0, 0);
-
-  // 设置缩放 attribute
-  var scaleLocation = gl.getAttribLocation(program, "a_scale");
-  var scaleBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, scaleBuffer);
-
-  // 为每个顶点设置相同的缩放量 (例如: x缩放1.5倍, y缩放1.5倍)
-  var scales = new Array(18 * 2).fill(0).map((_, i) => {
-    return i % 2 === 0 ? 1 : 1; // x: 1.5, y: 1.5
-  });
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(scales), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(scaleLocation);
-  gl.vertexAttribPointer(scaleLocation, 2, gl.FLOAT, false, 0, 0);
-
-  // 设置旋转 attribute
-  var rotationLocation = gl.getAttribLocation(program, "a_rotation");
-  var rotationBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, rotationBuffer);
-
-  // 为每个顶点设置相同的旋转角度 (例如: 旋转45度 = Math.PI / 4 弧度)
-  var rotations = new Array(18).fill(0); // 45度
-
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(rotations), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(rotationLocation);
-  gl.vertexAttribPointer(rotationLocation, 1, gl.FLOAT, false, 0, 0);
-
-  var texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-
-  // 设置参数，让我们可以绘制任何尺寸的图像
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-
-  // 将图像上传到纹理
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.useProgram(program);
-
-  // 设置分辨率 uniform
-  const resolutionUniformLocation = gl.getUniformLocation(
-    program,
-    "u_resolution"
-  );
-  gl.uniform2f(resolutionUniformLocation, canvas.width, canvas.height);
-
-  // 绘制
-  var primitiveType = gl.TRIANGLES;
-  var offset = 0;
-  var count = 18;
-  gl.drawArrays(primitiveType, offset, count);
-}
-
-function requestImage() {
-  let image = new Image();
-  image.src = "http://127.0.0.1:8082/image/index.jpeg";
-  if (image) {
-    image.onload = function () {
-      main(image);
+  function updatePosition(index: number) {
+    return function (_event: any, ui: { value: number }) {
+      translation[index] = ui.value;
+      drawScene();
     };
   }
+
+  function updateRotation(index: number) {
+    return function (_event: any, ui: { value: number }) {
+      const angleInDegrees = ui.value;
+      const angleInRadians = (angleInDegrees * Math.PI) / 180;
+      rotation[index] = angleInRadians;
+      drawScene();
+    };
+  }
+
+  function updateScale(index: number) {
+    return function (_event: any, ui: { value: number }) {
+      scale[index] = ui.value;
+      drawScene();
+    };
+  }
+
+  // Draw the scene.
+  function drawScene(): void {
+    // TypeScript needs reassurance that these are not null
+    if (!canvas || !gl) return;
+
+    webglUtils.resizeCanvasToDisplaySize(canvas);
+
+    // Tell WebGL how to convert from clip space to pixels
+    gl.viewport(0, 0, canvas.width, canvas.height);
+
+    // Clear the canvas.
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    // Tell it to use our program (pair of shaders)
+    gl.useProgram(program);
+
+    // Turn on the attribute
+    gl.enableVertexAttribArray(positionLocation);
+
+    // Bind the position buffer.
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+
+    // Tell the attribute how to get data out of positionBuffer (ARRAY_BUFFER)
+    const size = 3; // 3 components per iteration
+    const type = gl.FLOAT; // the data is 32bit floats
+    const normalize = false; // don't normalize the data
+    const stride = 0; // 0 = move forward size * sizeof(type) each iteration to get the next position
+    const offset = 0; // start at the beginning of the buffer
+    gl.vertexAttribPointer(positionLocation, size, type, normalize, stride, offset);
+
+    // set the color
+    gl.uniform4fv(colorLocation, color);
+
+    // Compute the matrices
+    let matrix = m4.projection(canvas.clientWidth, canvas.clientHeight, 400);
+    matrix = m4.translate(matrix, translation[0], translation[1], translation[2]);
+    matrix = m4.xRotate(matrix, rotation[0]);
+    matrix = m4.yRotate(matrix, rotation[1]);
+    matrix = m4.zRotate(matrix, rotation[2]);
+    matrix = m4.scale(matrix, scale[0], scale[1], scale[2]);
+
+    // Set the matrix.
+    gl.uniformMatrix4fv(matrixLocation, false, new Float32Array(matrix));
+
+    // Draw the geometry.
+    const primitiveType = gl.TRIANGLES;
+    const drawOffset = 0;
+    const count = 18; // 6 triangles in the 'F', 3 points per triangle
+    gl.drawArrays(primitiveType, drawOffset, count);
+  }
 }
-requestImage();
+
+// 页面加载后启动
+main();
