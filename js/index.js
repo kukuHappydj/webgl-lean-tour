@@ -179,7 +179,7 @@ function main(img) {
     gl.bindBuffer(gl.ARRAY_BUFFER, translationBuffer);
     // 为每个顶点设置相同的平移量 (例如: x平移100像素, y平移50像素)
     var translations = new Array(18 * 2).fill(0).map((_, i) => {
-        return i % 2 === 0 ? 100 : 50; // x: 100, y: 50
+        return i % 2 === 0 ? 100 : 0; // x: 100, y: 50
     });
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(translations), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(translationLocation);
@@ -190,7 +190,7 @@ function main(img) {
     gl.bindBuffer(gl.ARRAY_BUFFER, scaleBuffer);
     // 为每个顶点设置相同的缩放量 (例如: x缩放1.5倍, y缩放1.5倍)
     var scales = new Array(18 * 2).fill(0).map((_, i) => {
-        return i % 2 === 0 ? 1.5 : 1.5; // x: 1.5, y: 1.5
+        return i % 2 === 0 ? 1 : 1; // x: 1.5, y: 1.5
     });
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(scales), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(scaleLocation);
@@ -200,7 +200,7 @@ function main(img) {
     var rotationBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, rotationBuffer);
     // 为每个顶点设置相同的旋转角度 (例如: 旋转45度 = Math.PI / 4 弧度)
-    var rotations = new Array(18).fill(Math.PI / 4); // 45度
+    var rotations = new Array(18).fill(0); // 45度
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(rotations), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(rotationLocation);
     gl.vertexAttribPointer(rotationLocation, 1, gl.FLOAT, false, 0, 0);
